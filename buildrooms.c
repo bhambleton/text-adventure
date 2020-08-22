@@ -199,7 +199,6 @@ void add_random_connection(struct room rooms_array[NUM_ROOMS]){
  *     Post-conditions: address to a random index is returned
 ******************************************************************************/
 struct room* get_random_room(struct room rooms_array[NUM_ROOMS]){
-	//int index = rand() % NUM_ROOMS;
 	return &rooms_array[rand() % NUM_ROOMS];
 }
 
@@ -211,8 +210,7 @@ struct room* get_random_room(struct room rooms_array[NUM_ROOMS]){
  *     Post-conditions: returns an integer
 ******************************************************************************/
 int can_add_connection_from(struct room x){
-	if (x.num_connections < NUM_CONNECTIONS) return 1;
-	return 0;
+	return (x.num_connections < NUM_CONNECTIONS) ? 1 : 0;
 }
 
 /******************************************************************************
@@ -240,8 +238,7 @@ int connection_already_exists(struct room x, struct room y){
  *     Post-conditions: returns integer
 ******************************************************************************/
 int is_same_room (struct room x, struct room y){
-    	if (!strcmp(x.name, y.name)) return 1;
-	return 0;
+	return (strcmp(x.name, y.name)) ? 0 : 1;
 }
 
 /******************************************************************************
