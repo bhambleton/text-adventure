@@ -4,21 +4,26 @@
 #include "adventure.h"
 #include "get_input.h"
 
-pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex1;
+int print_check = 0;
 
 int main() {
-    	int step_count = 0, print_check = 0, result_code;
-	
+    int step_count = 0;
+
 	char* user_input = NULL;
 	int buffer_length = 0, input_length = 0;
+
 
 	pthread_t my_thread;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, 1);
 
-	result_code = pthread_create(&my_thread, &attr, write_current_time, NULL);
-	assert(result_code == 0);
+    if (pthread_mutex_init(&mutex1, NULL) != 0) {
+        perror("Error initializing mutex");
+        return 1;
+    }
+
 
 	//user path linked list
 	struct node* user_path = NULL;
@@ -29,47 +34,55 @@ int main() {
 		pthread_attr_destroy(&attr);
 		pthread_mutex_destroy(&mutex1);
 		pthread_exit(0);
-		puts("Error reading files.");
+		perror("Error reading files.");
 		exit(1);
 	}
 
 	struct room* rooms_array = allocate_rooms();
-	
+
 	// build room structs from files
 	read_files(rooms_array, filepath_array);
 	de_allocate_filepaths(filepath_array);
-	
+
 	//get start_room and set to current room
-	struct room* current_room = get_start(rooms_array);	
+	struct room* current_room = get_start(rooms_array);
 	add_node(&user_path, current_room->name);
-	
+
 	//add some space above output
 	printf("\n");
-	
+
 	/*Game Loop*/
 	while (strcmp(current_room->type, "END_ROOM") != 0) {
 		print_room_info(current_room);
 		printf("WHERE TO? > ");
-		input_length = get_line(&user_input, &buffer_length, stdin);			
-		
+		input_length = get_line(&user_input, &buffer_length, stdin);
+
 		// check input
 		int result = check_input(user_input, current_room);
 
 		if (result == COM_TIME) {
-			print_check += 2;
+	        if (pthread_create(&my_thread, &attr, get_current_time, NULL) != 0) {
+                perror("Error creating thread");
+                free(user_input);
+                free_list(&user_path);
+                de_allocate_rooms(rooms_array);
+                return 1;
+            }
+
+            print_check += 2;
 			pthread_join(my_thread, NULL);
-			read_time_file(&print_check);
+			read_time_file();
 		}
 		else if (result >= 0) {
 			current_room = get_room(rooms_array, user_input);
 			//add room name to user path
 			step_count++;
 			add_node(&user_path, current_room->name);
-			clear_screen(&print_check);
+			clear_screen();
 		}
 		else {
 			print_check += 2;
-			clear_screen(&print_check);
+			clear_screen();
 			puts("HUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.");
 		}
 
@@ -90,24 +103,32 @@ int main() {
 	pthread_attr_destroy(&attr);
 	pthread_mutex_destroy(&mutex1);
 	pthread_exit(0);
-	
+
 	return 0;
 }
 
 /* FUNCTIONS */
-void clear_screen(int* counter) {
-	int print_check = (*counter);
-    	if (print_check == 2) {
-		printf("\e[3F\e[J");
-		(*counter)--;
+
+/*
+ * TODO: fix how this is done so it is not broken
+ *          when the time is printed.
+ *
+ *      Currently a super clunky use of ANSI escape sequences
+ *      for cursor movement :D
+ *
+ * */
+void clear_screen() {
+    if (print_check == 2) {
+		printf("\e[3F\e[J"); // move cursor up 3 lines and clear terminal below
+		print_check--;
 	}
 	else if (print_check == 1) {
-		printf("\e[4F\e[J");
-	    	(*counter) = 0;
+		printf("\e[4F\e[J"); // move cursor up 4 lines and clear terminal below
+	    print_check = 0;
 	}
 	else if (print_check > 2) {
 		printf("\e[5F\e[J");
-		(*counter) -= 2;
+		print_check -= 2;
 	}
 	else {
 		printf("\e[3F\e[J");
@@ -144,8 +165,8 @@ struct room* allocate_rooms(){
 ******************************************************************************/
 struct room* get_room(struct room* rooms_array, char* room_name) {
 	for(int i = 0; i < NUM_ROOMS; i++){
-		if(strcmp(rooms_array[i].name, room_name) == 0) { 
-		    return &(rooms_array[i]); 
+		if(strcmp(rooms_array[i].name, room_name) == 0) {
+		    return &(rooms_array[i]);
 		}
 	}
 	return NULL;
@@ -160,7 +181,7 @@ struct room* get_room(struct room* rooms_array, char* room_name) {
 ******************************************************************************/
 struct room* get_start(struct room* rooms_array){
 	for(int i = 0; i < NUM_ROOMS; i++){
-	    	if(strcmp(rooms_array[i].type, "START_ROOM") == 0 ) { 
+	    	if(strcmp(rooms_array[i].type, "START_ROOM") == 0 ) {
 			return &(rooms_array[i]);
 		}
 	}
@@ -174,27 +195,28 @@ struct room* get_start(struct room* rooms_array){
  *	Pre-conditions: none
  *     Post-conditions: new file exists that
 ******************************************************************************/
-void* write_current_time(){
-	pthread_mutex_lock(&mutex1);
-    	time_t rawtime;
+void* get_current_time(){
+    time_t rawtime;
 	struct tm *info;
 	char time_string[64];
 	memset(time_string, '\0', 64);
 	FILE *fptr;
 	char filename[16];
-	memset(filename, '\0', 16);	
+	memset(filename, '\0', 16);
 	strcpy(filename, FILE_NAME);
+	pthread_mutex_lock(&mutex1);
 
 	//get current time and store it in time_string
 	time(&rawtime);
 	info = localtime(&rawtime);
 	strftime(time_string, 64, "%I:%M%p, %A, %B %d, %Y", info);
 	//print time_string to file
-	fptr = fopen(filename, "w+");
+	fptr = fopen(filename, "w");
 	fprintf(fptr, "%s\n", time_string);
 	fclose(fptr);
 	pthread_mutex_unlock(&mutex1);
-	pthread_exit(NULL);
+
+    pthread_exit(NULL);
 }
 
 /******************************************************************************
@@ -204,22 +226,22 @@ void* write_current_time(){
  *	Pre-conditions: file exists and is readable
  *     Post-conditions: current time printed to screen
 ******************************************************************************/
-void read_time_file(int* print_check){
+void read_time_file(){
 	FILE *fptr;
 	char time_string[64];
 	memset(time_string, '\0', 64);
 	char filename[16];
-	memset(filename, '\0', 16);	
+	memset(filename, '\0', 16);
 	strcpy(filename, FILE_NAME);
 
-	fptr = fopen(filename, "r");
+	while ((fptr = fopen(filename, "r")) == NULL) ;
 	fgets(time_string, 64, fptr);
-	clear_screen(print_check);
+	clear_screen();
 	printf("%s\n", time_string);
 	fclose(fptr);
 }
 /******************************************************************************
- *	   Description: checks user input to match a room name in the current 
+ *	   Description: checks user input to match a room name in the current
  *	   		room's outboundConnections
  *	    Parameters: Receives user input and address of current room
  *	       Returns: if user_input doesn't match a outbound room name return -1
@@ -230,12 +252,12 @@ void read_time_file(int* print_check){
 int check_input(char* user_input, struct room* current_room){
 	if (!strcmp(user_input, "time"))
 		return COM_TIME;
-    	
+
     	for (int i = 0; i < current_room->num_connections; i++) {
-	    	if(!strcmp(user_input, current_room->outbound_connections[i]->name)) 
+	    	if(!strcmp(user_input, current_room->outbound_connections[i]->name))
 			return i;
 	}
-	
+
 	// input does not match any room
 	return -1;
 }
@@ -256,7 +278,7 @@ char** get_file_paths(){
 		memset(filepath_array[i], '\0', 64);
 	}
 
-	char file_suffix[6] = "_Room"; 
+	char file_suffix[6] = "_Room";
 	char* my_dir = read_my_dir();
 	DIR* dir_ptr = opendir(my_dir);
 
@@ -310,7 +332,7 @@ char* read_my_dir(){
 		    		}//end of if file newer than previous newest file
 			}//end of if filename contains my str
     		}//end while loop
-	
+
 		if ( newest_dir_name[0] == '\0') {
 			printf("Can not find correct directory!\n");
 			free(newest_dir_name);
@@ -334,7 +356,7 @@ void print_room_info(struct room* current_room){
 	printf("CURRENT LOCATION: %s\n", current_room->name);
 	printf("POSSIBLE CONNECTIONS:");
 	for(i=0; i < current_room->num_connections; i++){
-		if(i < (current_room->num_connections-1) ) { 
+		if(i < (current_room->num_connections-1) ) {
 	    		printf(" %s,", current_room->outbound_connections[i]->name);
 		}
 		else if (i == (current_room->num_connections-1)) {
@@ -345,26 +367,26 @@ void print_room_info(struct room* current_room){
 
 
 /******************************************************************************
- *	   Description:	Attaches the connections to each room struct 
+ *	   Description:	Attaches the connections to each room struct
  *	    Parameters: rooms array and 2d array holding filepaths
  *	       Returns: none
  *	Pre-conditions: rooms_array is filled with name and type for each room
- *     Post-conditions: outboundConnections array for each room contains the 
+ *     Post-conditions: outboundConnections array for each room contains the
  *     			correct address for connected rooms
 ******************************************************************************/
 void attach_connections(struct room* rooms_array, char** filepath_array) {
 	FILE* fptr;
-	
+
 	for(int i = 0; i < NUM_ROOMS; i++){
 	    	int connection_index = 0;
 		char arg1[12], arg2[12], arg3[12];
 		memset(arg1, '\0', 12); memset(arg2, '\0', 12); memset(arg3, '\0', 12);
 	    	fptr = fopen(filepath_array[i], "r");
-	       	if( fptr == NULL) {     
+	       	if( fptr == NULL) {
 		    perror("Error reading file.");
-		    exit(1); 
+		    exit(1);
 		}
-	
+
 		while((fscanf(fptr, "%s %s %s", arg1, arg2, arg3)) != EOF){
 			//printf("%s\t%s\t%s\n", arg1, arg2, arg3);
 			if(strcmp(arg1, "CONNECTION") == 0){
@@ -384,50 +406,50 @@ void attach_connections(struct room* rooms_array, char** filepath_array) {
  *	   		data to corresponding struct
  *	    Parameters: receives rooms_array and 2D array of char containing filepaths
  *	       Returns: none
- *	Pre-conditions: rooms_array and filepath_array are not null, 
+ *	Pre-conditions: rooms_array and filepath_array are not null,
  *			files exist and are readable
  *     Post-conditions: each room in rooms_array is updated with information
  *     			contained in their files
 ******************************************************************************/
 void read_files(struct room* rooms_array, char** filepath_array){
 	FILE* fptr;
-	
+
 	for(int i = 0; i < NUM_ROOMS; i++){
 	    	char arg1[12], arg2[12], arg3[12];
-		memset(arg1, '\0', 12); 
-		memset(arg2, '\0', 12); 
+		memset(arg1, '\0', 12);
+		memset(arg2, '\0', 12);
 		memset(arg3, '\0', 12);
-	    	
+
 		fptr = fopen(filepath_array[i], "r");
-	       	
-		if( fptr == NULL) {     
+
+		if( fptr == NULL) {
 		    perror("Error reading file.");
-		    exit(1); 
+		    exit(1);
 		}
-		
-		// read through room file	
+
+		// read through room file
 		while((fscanf(fptr, "%s %s %s", arg1, arg2, arg3)) != EOF){
 			//printf("%s\t%s\t%s\n", arg1, arg2, arg3);
 			if(strcmp(arg1, "ROOM") == 0){
-				if(strcmp(arg2, "NAME:") == 0) { 
-				    	strcpy(rooms_array[i].name, arg3); 
+				if(strcmp(arg2, "NAME:") == 0) {
+				    	strcpy(rooms_array[i].name, arg3);
 				}
-				else if (strcmp(arg2, "TYPE:") == 0) { 
-				    	strcpy(rooms_array[i].type, arg3); 
+				else if (strcmp(arg2, "TYPE:") == 0) {
+				    	strcpy(rooms_array[i].type, arg3);
 				}
 			}
 		    	memset(arg1, '\0', 12); memset(arg2, '\0', 12); memset(arg3, '\0', 12);
 		}
-		
+
 		fclose(fptr);
 	}
-	
+
 	attach_connections(rooms_array, filepath_array);
 }
 
 /******************************************************************************
- *	   Description: Frees memory allocated for 2D array of chars containing 
- *	   		filepaths 
+ *	   Description: Frees memory allocated for 2D array of chars containing
+ *	   		filepaths
  *	    Parameters: receives 2D array of char
  *	       Returns: none
  *	Pre-conditions: filepaths_array is not NULL
@@ -443,7 +465,7 @@ void de_allocate_filepaths(char** filepaths_array) {
 }
 
 /******************************************************************************
- *	   Description: Frees memory allocated for array of struct room 
+ *	   Description: Frees memory allocated for array of struct room
  *	    Parameters: receives array of struct room
  *	       Returns: none
  *	Pre-conditions: rooms_array is not NULL

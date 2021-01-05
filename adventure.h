@@ -39,12 +39,12 @@ void attach_connections(struct room*, char**);
 
 // game interactions
 struct room* get_start(struct room*);
-void* write_current_time();
-void read_time_file(int*);
+void* get_current_time();
+void read_time_file();
 int check_input(char*, struct room*);
 void print_room_info(struct room*);
 struct room* get_room(struct room*, char*);
-void clear_screen(int*);
+void clear_screen();
 
 // cleanup
 void de_allocate_filepaths(char**);
