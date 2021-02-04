@@ -11,7 +11,7 @@ int main() {
 	//user path linked list
 	struct node* user_path = NULL;
     int step_count = 0;
-	
+
 	//search for directory, verify files
 	char** filepath_array = get_file_paths();
 	if (filepath_array == NULL) {
@@ -34,12 +34,12 @@ int main() {
     // get lock
     pthread_mutex_lock(&mutex1);
 
-	// pthread 
+	// pthread
     pthread_t my_thread;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, 1);
-    
+
     // run the game !
     game(&step_count, &user_path, &rooms_array, &my_thread, &attr);
 
@@ -53,7 +53,7 @@ int main() {
 	//thread cleanup
 	pthread_attr_destroy(&attr);
 	pthread_mutex_destroy(&mutex1);
-	pthread_exit(0);
+	//pthread_exit(0);
 
 	return 0;
 }
@@ -68,7 +68,7 @@ int main() {
  *      for cursor movement :D
  *
  * */
-void 
+void
 clear_screen() {
     if (print_check == 2) {
 		printf("\e[3F\e[J"); // move cursor up 3 lines and clear terminal below
@@ -98,20 +98,20 @@ clear_screen() {
  *  Post-conditions: user path added to linked list of rooms visited
  *                   and step counter incremented
 ******************************************************************************/
-void 
-game (int* step_count, struct node** user_path, struct room** rooms_array, 
+void
+game (int* step_count, struct node** user_path, struct room** rooms_array,
         pthread_t* my_thread, pthread_attr_t* attr)
 {
 	char* user_input = NULL;
 	int buffer_length = 0, input_length = 0;
-    
+
     //get start_room and set to current room
 	struct room* current_room = get_start(*rooms_array);
 	add_node(user_path, current_room->name);
 
 	//add some space above output
 	printf("\n");
-	
+
 	/*Game Loop*/
     while (strcmp(current_room->type, "END_ROOM") != 0) {
 		print_room_info(current_room);
@@ -122,7 +122,6 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
 		int result = check_input(user_input, current_room);
 
 		if (result == COM_TIME) {
-	        pthread_mutex_unlock(&mutex1);
             if (pthread_create(my_thread, attr, get_current_time, NULL) != 0) {
                 perror("Error creating thread");
                 free(user_input);
@@ -132,9 +131,13 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
             }
 
             print_check += 2;
-			pthread_join(*my_thread, NULL);
-			pthread_mutex_lock(&mutex1);
+            // release lock
+            pthread_mutex_unlock(&mutex1);
+            pthread_join(*my_thread, NULL);
+
             read_time_file();
+
+            pthread_mutex_lock(&mutex1);
 		}
 		else if (result >= 0) {
 			current_room = get_room(*rooms_array, user_input);
@@ -164,7 +167,7 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
  *	Pre-conditions: enough memory for sizeof(struct room)*NUM_ROOMS
  *     Post-conditions: memory reserved for struct room[NUM_ROOMS]
 ******************************************************************************/
-struct 
+struct
 room* allocate_rooms() {
 	struct room* temp_array = (struct room*) malloc(NUM_ROOMS * sizeof(struct room));
 	for (int i = 0; i < NUM_ROOMS; i++) {
@@ -187,7 +190,7 @@ room* allocate_rooms() {
  *	Pre-conditions: room_name exists in the rooms_array
  *     Post-conditions: returns a struct room
 ******************************************************************************/
-struct 
+struct
 room* get_room(struct room* rooms_array, char* room_name) {
 	for(int i = 0; i < NUM_ROOMS; i++){
 		if(strcmp(rooms_array[i].name, room_name) == 0) {
@@ -204,7 +207,7 @@ room* get_room(struct room* rooms_array, char* room_name) {
  *	Pre-conditions: rooms_array is not empty
  *     Post-conditions: room struct is returned
 ******************************************************************************/
-struct 
+struct
 room* get_start(struct room* rooms_array){
 	for(int i = 0; i < NUM_ROOMS; i++){
 	    	if(strcmp(rooms_array[i].type, "START_ROOM") == 0 ) {
@@ -221,7 +224,7 @@ room* get_start(struct room* rooms_array){
  *	Pre-conditions: none
  *     Post-conditions: new file exists that
 ******************************************************************************/
-void* 
+void*
 get_current_time(){
     time_t rawtime;
 	struct tm *info;
@@ -253,7 +256,7 @@ get_current_time(){
  *	Pre-conditions: file exists and is readable
  *     Post-conditions: current time printed to screen
 ******************************************************************************/
-void 
+void
 read_time_file(){
 	FILE *fptr;
 	char time_string[64];
@@ -279,7 +282,7 @@ read_time_file(){
  *	 Pre-conditions: user_input is not empty, current_room is not empty
  *  Post-conditions: int is returned
 ******************************************************************************/
-int 
+int
 check_input(char* user_input, struct room* current_room){
 	if (!strcmp(user_input, "time"))
 		return COM_TIME;
@@ -300,7 +303,7 @@ check_input(char* user_input, struct room* current_room){
  *	Pre-conditions: files exist
  *     Post-conditions: 2d array is returned to calling function
 ******************************************************************************/
-char** 
+char**
 get_file_paths(){
 	char** filepath_array;
 	filepath_array = calloc(NUM_ROOMS, sizeof(char*));
@@ -341,7 +344,7 @@ get_file_paths(){
  *	Pre-conditions: directory exists
  *     Post-conditions: returns string containing newest directory
 ******************************************************************************/
-char* 
+char*
 read_my_dir(){
     	int newest_dir_time = -1;
     	char dir_prefix[17] = "adventure.rooms.";
@@ -354,7 +357,7 @@ read_my_dir(){
     	struct stat dir_attributes;
 
     	dir_ptr = opendir(".");
-    	
+
         if (dir_ptr > 0 ) {
             // iterate over files in current directory
     		while ((file_in_dir = readdir(dir_ptr))) {
@@ -363,7 +366,7 @@ read_my_dir(){
                 if (strstr(file_in_dir->d_name, dir_prefix)) {
 		    	    // get file attributes of directory as a struct stat
                     stat(file_in_dir->d_name, &dir_attributes);
-		    		
+
                     // compare modified time of file to current newest time
                     if( (int)dir_attributes.st_mtime > newest_dir_time){
 				        newest_dir_time = (int)dir_attributes.st_mtime;
@@ -391,19 +394,14 @@ read_my_dir(){
  *	Pre-conditions: current_room is not NULL
  *     Post-conditions: room information printed to screen
 ******************************************************************************/
-void 
+void
 print_room_info(struct room* current_room){
 	int i = 0;
-	
+
     printf("CURRENT LOCATION: %s\nPOSSIBLE CONNECTIONS:", current_room->name);
-	
+
     for (i=0; i < current_room->num_connections; i++){
-		//if (i < (current_room->num_connections-1) ) {
-	    		printf(" %s ", current_room->outbound_connections[i]->name);
-		//}
-		//else if (i == (current_room->num_connections-1)) {
-	    //		printf(" %s.\n", current_room->outbound_connections[i]->name);
-		//}
+	    printf(" %s ", current_room->outbound_connections[i]->name);
 	}
     printf("\n");
 }
@@ -417,7 +415,7 @@ print_room_info(struct room* current_room){
  *     Post-conditions: outboundConnections array for each room contains the
  *     			correct address for connected rooms
 ******************************************************************************/
-void 
+void
 attach_connections(struct room* rooms_array, char** filepath_array) {
 	FILE* fptr;
 
@@ -425,7 +423,7 @@ attach_connections(struct room* rooms_array, char** filepath_array) {
 	    int connection_index = 0;
 		char arg1[12], arg2[12], arg3[12];
 		memset(arg1, '\0', 12); memset(arg2, '\0', 12); memset(arg3, '\0', 12);
-	    
+
         fptr = fopen(filepath_array[i], "r");
         if (!fptr) {
 		    perror("Error reading file.");
@@ -455,7 +453,7 @@ attach_connections(struct room* rooms_array, char** filepath_array) {
  *     Post-conditions: each room in rooms_array is updated with information
  *     			contained in their files
 ******************************************************************************/
-void 
+void
 read_files(struct room* rooms_array, char** filepath_array){
 	FILE* fptr;
 
@@ -500,7 +498,7 @@ read_files(struct room* rooms_array, char** filepath_array){
  *	Pre-conditions: filepaths_array is not NULL
  *     Post-conditions: memory allocated for filepaths_array is free'd
 ******************************************************************************/
-void 
+void
 de_allocate_filepaths(char** filepaths_array) {
 	if(filepaths_array != NULL){
 		for(int i = (NUM_ROOMS-1); i >= 0; i--) {
@@ -517,7 +515,7 @@ de_allocate_filepaths(char** filepaths_array) {
  *	Pre-conditions: rooms_array is not NULL
  *     Post-conditions: memory allocated for rooms_array is free'd
 ******************************************************************************/
-void 
+void
 de_allocate_rooms(struct room* rooms_array){
 	if (rooms_array != NULL) {
     		for(int i = 0; i < NUM_ROOMS; i++){
