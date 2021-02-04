@@ -18,7 +18,6 @@ run: $(GAME_EXE) $(BUILD_EXE)
 	./$(GAME_EXE)
 
 clean:
-	rm -f $(BUILD_EXE)
-	rm -f $(GAME_EXE)
-	rm -rf adventure.rooms.*
+	rm -f $(BUILD_EXE) $(GAME_EXE)
+	rm -rf adventure.rooms.* $(BUILD_EXE).dSYM/ $(GAME_EXE).dSYM/
 	rm -f currentTime.txt

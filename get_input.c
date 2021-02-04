@@ -30,7 +30,6 @@ int main(int argc, char* argv[]){
 	return 0;
 }
 */
-
 int alloc_line(char** buffer, int* buffer_length, int new_length) {
     	char* new_buffer = realloc((*buffer), new_length);
     	if (!new_buffer)

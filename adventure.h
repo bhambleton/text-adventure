@@ -44,6 +44,7 @@ void read_time_file();
 int check_input(char*, struct room*);
 void print_room_info(struct room*);
 struct room* get_room(struct room*, char*);
+void game(int*, struct node**, struct room**, pthread_t*, pthread_attr_t*);
 void clear_screen();
 
 // cleanup
