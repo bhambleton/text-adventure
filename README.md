@@ -1,9 +1,11 @@
 # text-adventure
-Text-based adventure game.
+Text-based Adventure Game for an Operating Systems 1 course.
 
-Players can move from room to room, searching for the end room to win the game!
+The game is based on old text adventure games like [Colossal Cave Adventure](http://en.wikipedia.org/wiki/Colossal_Cave_Adventure)
 
-**Disclaimer:** There is some redundancy in the use of files to generate the game's room files. This was done for practice reading to and writing from files. A *cleaner* implementation would simply utilize the data structures generated to store game layout and room information.
+Players can move from room to room by typing the name of the room. The goal is to reach the end room to win the game!
+
+**Disclaimer:** There is some redundancy in the use of files to generate the game's room files. This was done for practice reading to and writing from files because it was an assignment for a course. A *cleaner* implementation would simply utilize the data structures generated to store game layout and room information.
 
 # Usage
 Compile with `make`
