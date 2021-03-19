@@ -30,6 +30,7 @@ main (int argc, char* argv[]) {
 
     // pthread
     pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, 1);
     if (pthread_create(&my_thread, &attr, &get_current_time, NULL) != 0) {
         perror("Error creating thread");
         de_allocate_game(&game);
