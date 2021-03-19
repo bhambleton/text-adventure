@@ -7,8 +7,8 @@
 pthread_mutex_t mutex1;
 
 // for printing error message if bad input
-uint8_t input_err = 0;
-uint8_t start = 0;
+int input_err = 0;
+int start = 0;
 
 int main(int argc, char* argv[]) {
     // filepaths for room info files
