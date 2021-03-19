@@ -16,8 +16,6 @@ int start = 0;
 
 int
 main (int argc, char* argv[]) {
-    printf("%d\n", PTHREAD_CREATE_DETACHED);
-    return 0;
     // game struct for game components
     struct game* game = NULL;
 
