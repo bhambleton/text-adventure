@@ -31,14 +31,14 @@ int main(int argc, char* argv[]){
 }
 */
 int alloc_line(char** buffer, int* buffer_length, int new_length) {
-    	char* new_buffer = realloc((*buffer), new_length);
-    	if (!new_buffer)
-		return -1;
+    char* new_buffer = realloc((*buffer), new_length);
+    if (!new_buffer)
+        return -1;
 
-	(*buffer) = new_buffer;
-	(*buffer_length) = new_length;
+    (*buffer) = new_buffer;
+    (*buffer_length) = new_length;
 
-	return 0;
+    return 0;
 }
 
 int get_line (char** buffer, int* buffer_length, FILE* fptr) {

@@ -1,0 +1,7 @@
+adventure
+build_rooms
+adventure.rooms.*/
+
+# macOS artifacts
+adventure.dSYM/
+build_rooms.dSYM/

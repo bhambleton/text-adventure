@@ -31,6 +31,7 @@ free_list (struct node** head) {
 void
 print_list (struct node* head, int step_count) {
     struct node* curr = head;
+
     printf("\e[10A\e[0J");
     printf("YOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
     printf("YOU TOOK %d STEPS.\nYOUR PATH TO VICTORY WAS:\n", step_count);
@@ -55,7 +56,7 @@ add_node (struct node** head, char* name) {
     assert(new_node->name);
     memcpy(new_node->name, name, ROOM_NAME_MAX);
 
-    if ((*head) == NULL) {
+    if (!(*head)) {
         (*head) = new_node;
         return;
     }

@@ -13,21 +13,22 @@ int start = 0;
 int main(int argc, char* argv[]) {
     // filepaths for room info files
     char** filepath_array = NULL;
-	//user path linked list
-	struct node* user_path = NULL;
-	int step_count = 0;
+    // game struct for game components
+    struct game* game = NULL;
 
-	//search for directory, verify files
-	//char** filepath_array = get_file_paths();
-	if (!(filepath_array = get_file_paths())) {
-		perror("Error reading files.");
-		exit(1);
-	}
+    //search for directory, verify files
+    if (!(filepath_array = get_file_paths())) {
+        perror("Error reading files.");
+        exit(1);
+    }
 
-	struct room* rooms_array = allocate_rooms();
+    if (!(game = allocate_game())) {
+        perror("Error initializing game");
+        return 1;
+    }
 
 	// build room structs from files
-	read_files(rooms_array, filepath_array);
+	read_files(&game, filepath_array);
 	de_allocate_filepaths(filepath_array);
 
 	// initialize mutex lock
@@ -46,19 +47,17 @@ int main(int argc, char* argv[]) {
 	pthread_attr_setdetachstate(&attr, 1);
 
 	// run the game !
-	game(&step_count, &user_path, &rooms_array, &my_thread, &attr);
+	run_game(&game, &my_thread, &attr);
 
 	//print contents of user_path up to step_count
-	print_list(user_path, step_count);
+	print_list(game->user_path, game->step_count);
 
 	//free memory used
-	free_list(&user_path);
-	de_allocate_rooms(rooms_array);
+    de_allocate_game(&game);
 
 	//thread cleanup
 	pthread_attr_destroy(&attr);
 	pthread_mutex_destroy(&mutex1);
-	//pthread_exit(0);
 
 	return 0;
 }
@@ -66,18 +65,16 @@ int main(int argc, char* argv[]) {
 /* FUNCTIONS */
 
 /******************************************************************************
- *	    Description: handles game logic
- *	     Parameters: int* step counter, struct node** address of pointer to linked list,
- *	                    struct room** address of array of struct room,
- *	                    pthread_t* address of thread, pthread_attr_t* address of thread attribute struct
- *	        Returns: none
- *	 Pre-conditions: game components initialized
+ *      Description: handles game logic
+ *       Parameters: address of game struct pointer, pthread_t* address of thread struct,
+ *                   pthread_attr_t* address of thread attribute struct
+ *          Returns: none
+ *   Pre-conditions: game components initialized
  *  Post-conditions: user path added to linked list of rooms visited
  *                   and step counter incremented
 ******************************************************************************/
 void
-game (int* step_count, struct node** user_path, struct room** rooms_array,
-        pthread_t* my_thread, pthread_attr_t* attr)
+run_game (struct game** game, pthread_t* my_thread, pthread_attr_t* attr)
 {
     // user input
     char* user_input = NULL;
@@ -87,8 +84,8 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
     char* time_string = NULL;
 
     //get start_room and set to current room
-    struct room* current_room = get_start(*rooms_array);
-    add_node(user_path, current_room->name);
+    struct room* current_room = get_start(game);
+    add_node(&(*game)->user_path, current_room->name);
 
     /*Game Loop*/
     while (strcmp(current_room->type, "END_ROOM")) {
@@ -98,11 +95,9 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
             time_string = NULL;
         }
 
-        input_length = get_line(&user_input, &buffer_length, stdin);
-        if (input_length < 0) {
+        if ((input_length = get_line(&user_input, &buffer_length, stdin)) < 0) {
             perror("Error reading input");
-            free_list(user_path);
-            de_allocate_rooms(*rooms_array);
+            de_allocate_game(game);
             exit(1);
         }
 
@@ -113,8 +108,7 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
             if (pthread_create(my_thread, attr, get_current_time, NULL) != 0) {
                 perror("Error creating thread");
                 free(user_input);
-                free_list(user_path);
-                de_allocate_rooms(*rooms_array);
+                de_allocate_game(game);
                 exit(1);
             }
 
@@ -125,18 +119,17 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
             time_string = read_time_file();
             if (!time_string) {
                 free(user_input);
-                free_list(user_path);
-                de_allocate_rooms(*rooms_array);
+                de_allocate_game(game);
                 exit(1);
             }
 
             pthread_mutex_lock(&mutex1);
         }
         else if (result >= 0) {
-            current_room = get_room(*rooms_array, user_input);
+            current_room = get_room(game, user_input);
             //add room name to user path
-            (*step_count)++;
-            add_node(user_path, current_room->name);
+            (*game)->step_count++;
+            add_node(&(*game)->user_path, current_room->name);
         }
         else {
             input_err = 1;
@@ -149,6 +142,13 @@ game (int* step_count, struct node** user_path, struct room** rooms_array,
     free(user_input);
 }
 
+/******************************************************************************
+ *     Description: Prints game info to same lines on console
+ *      Parameters: receives c_string and struct room pointer
+ *         Returns: none
+ *  Pre-conditions: struct room is not NULL
+ * Post-conditions: game information printed to screen
+******************************************************************************/
 void
 print_game_info(char* time_string, struct room* r) {
     if (!start) {
@@ -207,15 +207,36 @@ print_room_info (struct room* current_room) {
 }
 
 /******************************************************************************
- *	   Description: allocates memory on the heap for an array of struct room
- *	    Parameters: none
- *	       Returns: struct room[NUM_ROOMS]
- *	Pre-conditions: enough memory for sizeof(struct room)*NUM_ROOMS
- *     Post-conditions: memory reserved for struct room[NUM_ROOMS]
+ *     Description: allocates memory on heap for game struct
+ *      Parameters: none
+ *         Returns: struct game pointer
+ *  Pre-conditions: enough memory for game struct
+ * Post-conditions: memory reserved for struct game and fields
+******************************************************************************/
+struct
+game* allocate_game() {
+    struct game* game = (struct game*) malloc(sizeof(struct game));
+    assert(game);
+
+    game->step_count = 0;
+    game->user_path = NULL;
+    game->rooms_array = allocate_rooms();
+    assert(game->rooms_array);
+
+    return game;
+}
+
+/******************************************************************************
+ *     Description: allocates memory on heap for an array of struct room
+ *      Parameters: none
+ *         Returns: struct room[NUM_ROOMS]
+ *  Pre-conditions: enough memory for sizeof(struct room)*NUM_ROOMS
+ * Post-conditions: memory reserved for struct room[NUM_ROOMS]
 ******************************************************************************/
 struct
 room* allocate_rooms() {
     struct room* temp_array = (struct room*) malloc(NUM_ROOMS * sizeof(struct room));
+    assert(temp_array);
 
     for (int i = 0; i < NUM_ROOMS; i++) {
         temp_array[i].name = (char*) malloc(ROOM_INFO_LENGTH * sizeof(char));
@@ -228,38 +249,39 @@ room* allocate_rooms() {
             temp_array[i].outbound_connections[j] = NULL;
         }
     }
+
     return temp_array;
 }
 
 /******************************************************************************
- *	   Description: Searches array of rooms for room with given string
- *	    Parameters: array of struct room, and room name as a c-string
- *	       Returns: room with desired name
- *	Pre-conditions: room_name exists in the rooms_array
- *     Post-conditions: returns a struct room
+ *     Description: Searches array of rooms for room with given string
+ *      Parameters: address of game struct pointer and c-style string
+ *         Returns: room with desired name
+ *  Pre-conditions: room_name exists in the rooms_array
+ * Post-conditions: returns a struct room
 ******************************************************************************/
 struct
-room* get_room(struct room* rooms_array, char* room_name) {
-    for(int i = 0; i < NUM_ROOMS; i++){
-        if(strcmp(rooms_array[i].name, room_name) == 0) {
-            return &(rooms_array[i]);
+room* get_room(struct game** game, char* room_name) {
+    for (int i = 0; i < NUM_ROOMS; ++i){
+        if (!(strcmp((*game)->rooms_array[i].name, room_name))) {
+            return &((*game)->rooms_array[i]);
         }
     }
     return NULL;
 }
 
 /******************************************************************************
- *	   Description: Searches array of rooms for the room with type START_ROOM
- *	    Parameters: receives the array of rooms
- *	       Returns: struct room
- *	Pre-conditions: rooms_array is not empty
- *     Post-conditions: room struct is returned
+ *      Description: Searches array of rooms for the room with type START_ROOM
+ *       Parameters: address of game struct pointer
+ *          Returns: struct room or NULL
+ *   Pre-conditions: rooms_array is not empty
+ *  Post-conditions: room struct is returned
 ******************************************************************************/
 struct
-room* get_start(struct room* rooms_array){
-    for(int i = 0; i < NUM_ROOMS; i++){
-        if(strcmp(rooms_array[i].type, "START_ROOM") == 0 ) {
-            return &(rooms_array[i]);
+room* get_start(struct game** game){
+    for (int i = 0; i < NUM_ROOMS; ++i) {
+        if (!(strcmp((*game)->rooms_array[i].type, "START_ROOM"))) {
+            return &((*game)->rooms_array[i]);
         }
     }
     return NULL;
@@ -288,6 +310,7 @@ get_current_time(){
     time(&rawtime);
     info = localtime(&rawtime);
     strftime(time_string, 64, "%I:%M%p, %A, %B %d, %Y", info);
+
     //print time_string to file
     fptr = fopen(filename, "w");
     fprintf(fptr, "%s\n", time_string);
@@ -298,11 +321,11 @@ get_current_time(){
 }
 
 /******************************************************************************
- *	   Description: reads a line from file that holds the current time
- *	    Parameters: none
- *	       Returns: char* time
- *	Pre-conditions: file exists and is readable
- *     Post-conditions: current time printed to screen
+ *     Description: reads a line from file that holds the current time
+ *      Parameters: none
+ *         Returns: char* time
+ *  Pre-conditions: file exists and is readable
+ * Post-conditions: current time printed to screen
 ******************************************************************************/
 char*
 read_time_file(){
@@ -329,13 +352,13 @@ read_time_file(){
     return time_string;
 }
 /******************************************************************************
- *	    Description: checks user input to match a room name in the current
- *	   		          room's outboundConnections
- *	     Parameters: Receives user input and address of current room
- *	        Returns: if user_input doesn't match a outbound room name return -1
- *	        		    otherwise returns index of room
- *	 Pre-conditions: user_input is not empty, current_room is not empty
- *  Post-conditions: int is returned
+ *     Description: checks user input to match a room name in the current
+ *                  room's outboundConnections
+ *      Parameters: Receives user input and pointer to struct room
+ *         Returns: if user_input doesn't match a outbound room name return -1
+ *                  otherwise returns index of room
+ *  Pre-conditions: user_input is not empty, current_room is not empty
+ * Post-conditions: int is returned
 ******************************************************************************/
 int
 check_input(char* user_input, struct room* current_room){
@@ -352,11 +375,11 @@ check_input(char* user_input, struct room* current_room){
 }
 
 /******************************************************************************
- *	   Description: gets path to room file
- *	    Parameters: none
- *	       Returns: array of strings (char*)
- *	Pre-conditions: files exist
- *     Post-conditions: 2d array is returned to calling function
+ *     Description: gets path to room file
+ *      Parameters: none
+ *         Returns: array of strings (char*)
+ *  Pre-conditions: files exist
+ * Post-conditions: 2d array is returned to calling function
 ******************************************************************************/
 char**
 get_file_paths(){
@@ -365,7 +388,8 @@ get_file_paths(){
     char* my_dir = NULL;
     DIR* dir_ptr = NULL;
 
-    filepath_array = calloc(NUM_ROOMS, sizeof(char*));
+    filepath_array = (char**) calloc(NUM_ROOMS, sizeof(char*));
+    assert(filepath_array);
 
     for (int  i = 0; i < NUM_ROOMS; i++){
         filepath_array[i] = calloc(64, sizeof(char));
@@ -374,7 +398,7 @@ get_file_paths(){
 
     my_dir = read_my_dir();
 
-	if ((dir_ptr = opendir(my_dir)) > 0) {
+    if ((dir_ptr = opendir(my_dir)) > 0) {
         int index = 0;
         struct dirent* file_in_dir;
 
@@ -393,11 +417,11 @@ get_file_paths(){
 }
 
 /******************************************************************************
- *	   Description: searches for directory with onid username
- *	    Parameters: none
- *	       Returns: receives array of char holding directory name
- *	Pre-conditions: directory exists
- *     Post-conditions: returns string containing newest directory
+ *     Description: searches for directory with onid username
+ *      Parameters: none
+ *         Returns: receives array of char holding directory name
+ *  Pre-conditions: directory exists
+ * Post-conditions: returns string containing newest directory
 ******************************************************************************/
 char*
 read_my_dir(){
@@ -429,9 +453,10 @@ read_my_dir(){
                     strncpy(newest_dir_name, file_in_dir->d_name, 64);
                 }//end of if file newer than previous newest file
             }//end of if filename contains my str
+
         }//end while loop
 
-        if ( newest_dir_name[0] == '\0') {
+        if ( !newest_dir_name[0] ) {
             printf("Can not find correct directory!\n");
             free(newest_dir_name);
             exit(1);
@@ -445,14 +470,14 @@ read_my_dir(){
 
 /******************************************************************************
  *     Description: Attaches the connections to each room struct
- *      Parameters: rooms array and 2d array holding filepaths
+ *      Parameters: struct game address pointer and 2d array holding filepaths
  *         Returns: none
  *  Pre-conditions: rooms_array is filled with name and type for each room
  * Post-conditions: outboundConnections array for each room contains the
  *                  correct address for connected rooms
 ******************************************************************************/
 void
-attach_connections(struct room* rooms_array, char** filepath_array) {
+attach_connections(struct game** game, char** filepath_array) {
     FILE* fptr;
 
     for (int i = 0; i < NUM_ROOMS; ++i) {
@@ -462,7 +487,6 @@ attach_connections(struct room* rooms_array, char** filepath_array) {
         memset(arg2, '\0', ROOM_INFO_LENGTH);
         memset(arg3, '\0', ROOM_INFO_LENGTH);
 
-        //fptr = fopen(filepath_array[i], "r");
         if (!(fptr = fopen(filepath_array[i], "r"))) {
             perror("Error reading file.");
             exit(1);
@@ -471,9 +495,9 @@ attach_connections(struct room* rooms_array, char** filepath_array) {
         // read connections and add to room struct
         while((fscanf(fptr, "%s %s %s", arg1, arg2, arg3)) != EOF){
             if (!strcmp(arg1, "CONNECTION")) {
-                struct room* connection = get_room(rooms_array, arg3);
-                rooms_array[i].outbound_connections[connection_index] = connection;
-                rooms_array[i].num_connections++;
+                struct room* connection = get_room(game, arg3);
+                (*game)->rooms_array[i].outbound_connections[connection_index] = connection;
+                (*game)->rooms_array[i].num_connections++;
                 connection_index++;
             }
 
@@ -497,7 +521,7 @@ attach_connections(struct room* rooms_array, char** filepath_array) {
  *     			contained in their files
 ******************************************************************************/
 void
-read_files(struct room* rooms_array, char** filepath_array){
+read_files(struct game** game, char** filepath_array){
     FILE* fptr;
 
     for (int i = 0; i < NUM_ROOMS; ++i) {
@@ -506,7 +530,6 @@ read_files(struct room* rooms_array, char** filepath_array){
         memset(arg2, '\0', ROOM_INFO_LENGTH);
         memset(arg3, '\0', ROOM_INFO_LENGTH);
 
-        //fptr = fopen(filepath_array[i], "r");
         if(!(fptr = fopen(filepath_array[i], "r"))) {
             perror("Error reading file.");
             exit(1);
@@ -516,10 +539,10 @@ read_files(struct room* rooms_array, char** filepath_array){
         while ((fscanf(fptr, "%s %s %s", arg1, arg2, arg3)) != EOF){
             if (!strcmp(arg1, "ROOM")) {
                 if (!strcmp(arg2, "TYPE:")) {
-                    strncpy(rooms_array[i].type, arg3, ROOM_INFO_LENGTH);
+                    strncpy((*game)->rooms_array[i].type, arg3, ROOM_INFO_LENGTH);
                 }
                 else {
-                    strncpy(rooms_array[i].name, arg3, ROOM_INFO_LENGTH);
+                    strncpy((*game)->rooms_array[i].name, arg3, ROOM_INFO_LENGTH);
                 }
             }
 
@@ -527,13 +550,13 @@ read_files(struct room* rooms_array, char** filepath_array){
             memset(arg2, '\0', ROOM_INFO_LENGTH);
             memset(arg3, '\0', ROOM_INFO_LENGTH);
         }
-        assert(rooms_array[i].name);
-        assert(rooms_array[i].type);
+        assert((*game)->rooms_array[i].name);
+        assert((*game)->rooms_array[i].type);
 
         fclose(fptr);
     }
 
-    attach_connections(rooms_array, filepath_array);
+    attach_connections(game, filepath_array);
 }
 
 /******************************************************************************
@@ -546,11 +569,31 @@ read_files(struct room* rooms_array, char** filepath_array){
 ******************************************************************************/
 void
 de_allocate_filepaths(char** filepaths_array) {
-    if(filepaths_array != NULL){
-        for(int i = (NUM_ROOMS-1); i >= 0; i--) {
+    if (filepaths_array) {
+        for (int i = (NUM_ROOMS-1); i >= 0; i--) {
             free(filepaths_array[i]);
+            filepaths_array[i] = NULL;
         }
+
         free(filepaths_array);
+        filepaths_array = NULL;
+    }
+}
+
+/******************************************************************************
+ *      Description: Frees memory allocated for game components
+ *       Parameters: receives pointer to game struct
+ *          Returns: none
+ *   Pre-conditions: filepaths_array is not NULL
+ *  Post-conditions: memory allocated for filepaths_array is free'd
+******************************************************************************/
+void
+de_allocate_game(struct game** game) {
+    if (game) {
+        de_allocate_rooms((*game)->rooms_array);
+        free_list(&((*game)->user_path));
+        free((*game));
+        game = NULL;
     }
 }
 
@@ -563,12 +606,16 @@ de_allocate_filepaths(char** filepaths_array) {
 ******************************************************************************/
 void
 de_allocate_rooms(struct room* rooms_array){
-    if (rooms_array != NULL) {
-        for(int i = 0; i < NUM_ROOMS; i++){
+    if (rooms_array) {
+        for (int i = 0; i < NUM_ROOMS; i++){
             free(rooms_array[i].name);
+            rooms_array[i].name = NULL;
             free(rooms_array[i].type);
+            rooms_array[i].type = NULL;
         }
+
     free(rooms_array);
+    rooms_array = NULL;
     }
 }
 

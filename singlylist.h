@@ -1,8 +1,5 @@
 /************************************************
  *	Creates a singly linked list
- *	
- *	Each node holds a char pointer to a C-String  of
- *		and a node pointer
  *
 *************************************************/
 #ifndef _SINGLYLIST_H_
@@ -13,7 +10,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define ROOM_NAME_MAX 15
+#define ROOM_NAME_MAX 16
 
 struct node {
 	char* name;
