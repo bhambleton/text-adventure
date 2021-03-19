@@ -16,6 +16,8 @@ int start = 0;
 
 int
 main (int argc, char* argv[]) {
+    printf("%d\n", PTHREAD_CREATE_DETACHED);
+    return 0;
     // game struct for game components
     struct game* game = NULL;
 
@@ -30,7 +32,7 @@ main (int argc, char* argv[]) {
 
     // pthread
     pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, 1);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     if (pthread_create(&my_thread, &attr, &get_current_time, NULL) != 0) {
         perror("Error creating thread");
         de_allocate_game(&game);
