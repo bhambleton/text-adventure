@@ -35,6 +35,7 @@ struct game {
 };
 
 // setup
+int init_game(struct game**);
 struct game* allocate_game();
 char** get_file_paths();
 char* read_my_dir();
@@ -49,8 +50,7 @@ char* read_time_file();
 int check_input(char*, struct room*);
 void print_room_info(struct room*);
 struct room* get_room(struct game**, char*);
-void run_game(struct game**, pthread_t*, pthread_attr_t*);
-void clear_screen();
+int run_game(struct game**);
 void print_game_info(char*, struct room*);
 
 // cleanup

@@ -4,65 +4,82 @@
 #include "adventure.h"
 #include "get_input.h"
 
+// thread components
 pthread_mutex_t mutex1;
+pthread_t my_thread;
+pthread_attr_t attr;
 
 // for printing error message if bad input
 int input_err = 0;
 int start = 0;
 
-int main(int argc, char* argv[]) {
-    // filepaths for room info files
-    char** filepath_array = NULL;
+
+int
+main (int argc, char* argv[]) {
     // game struct for game components
     struct game* game = NULL;
 
-    //search for directory, verify files
-    if (!(filepath_array = get_file_paths())) {
-        perror("Error reading files.");
-        exit(1);
-    }
-
-    if (!(game = allocate_game())) {
-        perror("Error initializing game");
+    // initialize mutex lock
+    if (pthread_mutex_init(&mutex1, NULL) != 0) {
+        perror("Error initializing mutex");
         return 1;
     }
 
-	// build room structs from files
-	read_files(&game, filepath_array);
-	de_allocate_filepaths(filepath_array);
+    // get lock
+    pthread_mutex_lock(&mutex1);
 
-	// initialize mutex lock
-	if (pthread_mutex_init(&mutex1, NULL) != 0) {
-		perror("Error initializing mutex");
-		return 1;
-	}
+    // pthread
+    pthread_attr_init(&attr);
+    if (pthread_create(&my_thread, &attr, &get_current_time, NULL) != 0) {
+        perror("Error creating thread");
+        de_allocate_game(&game);
+        return 1;
+    }
 
-	// get lock
-	pthread_mutex_lock(&mutex1);
+    if (init_game(&game) < 0) {
+        return 1;
+    }
 
-	// pthread
-	pthread_t my_thread;
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, 1);
+    // run the game
+    if (!run_game(&game)) {
+        //print contents of user_path up to step_count
+        print_list(game->user_path, game->step_count);
+    }
 
-	// run the game !
-	run_game(&game, &my_thread, &attr);
-
-	//print contents of user_path up to step_count
-	print_list(game->user_path, game->step_count);
-
-	//free memory used
+    //free memory used
     de_allocate_game(&game);
 
-	//thread cleanup
-	pthread_attr_destroy(&attr);
-	pthread_mutex_destroy(&mutex1);
+    //thread cleanup
+    pthread_attr_destroy(&attr);
+    pthread_mutex_destroy(&mutex1);
 
 	return 0;
 }
 
 /* FUNCTIONS */
+
+int
+init_game (struct game** game) {
+    // filepaths for room info files
+    char** filepath_array = NULL;
+    //search for directory, verify files
+    if (!(filepath_array = get_file_paths())) {
+        perror("Error reading files.");
+        return -1;
+    }
+
+    // allocate game struct and its fields
+    if (!((*game) = allocate_game())) {
+        perror("Error initializing game");
+        return -1;
+    }
+
+    // build room structs from files
+    read_files(game, filepath_array);
+    de_allocate_filepaths(filepath_array);
+
+    return 0;
+}
 
 /******************************************************************************
  *      Description: handles game logic
@@ -73,9 +90,8 @@ int main(int argc, char* argv[]) {
  *  Post-conditions: user path added to linked list of rooms visited
  *                   and step counter incremented
 ******************************************************************************/
-void
-run_game (struct game** game, pthread_t* my_thread, pthread_attr_t* attr)
-{
+int
+run_game (struct game** game) {
     // user input
     char* user_input = NULL;
     int buffer_length = 0, input_length = 0;
@@ -97,33 +113,25 @@ run_game (struct game** game, pthread_t* my_thread, pthread_attr_t* attr)
 
         if ((input_length = get_line(&user_input, &buffer_length, stdin)) < 0) {
             perror("Error reading input");
-            de_allocate_game(game);
-            exit(1);
+            return -1;
         }
 
         // check input
         int result = check_input(user_input, current_room);
 
         if (result == COM_TIME) {
-            if (pthread_create(my_thread, attr, get_current_time, NULL) != 0) {
-                perror("Error creating thread");
-                free(user_input);
-                de_allocate_game(game);
-                exit(1);
-            }
-
-            // release lock
+            // release lock so thread can run
             pthread_mutex_unlock(&mutex1);
-            pthread_join(*my_thread, NULL);
+            sleep(1); // let thread run
+            pthread_mutex_lock(&mutex1); // get lock
 
-            time_string = read_time_file();
-            if (!time_string) {
+            if (!(time_string = read_time_file())) {
+                perror("Error reading time file");
                 free(user_input);
-                de_allocate_game(game);
-                exit(1);
+                return -6;
             }
 
-            pthread_mutex_lock(&mutex1);
+            //pthread_mutex_lock(&mutex1);
         }
         else if (result >= 0) {
             current_room = get_room(game, user_input);
@@ -140,6 +148,7 @@ run_game (struct game** game, pthread_t* my_thread, pthread_attr_t* attr)
     }
     /*End Game Loop*/
     free(user_input);
+    return 0;
 }
 
 /******************************************************************************
@@ -297,27 +306,30 @@ room* get_start(struct game** game){
 void*
 get_current_time(){
     time_t rawtime;
-    struct tm *info;
+    struct tm* info;
     char time_string[64];
     memset(time_string, '\0', 64);
-    FILE *fptr;
+    FILE* fptr;
     char filename[16];
     memset(filename, '\0', 16);
     strncpy(filename, FILE_NAME, 16);
-    pthread_mutex_lock(&mutex1);
 
-    //get current time and store it in time_string
-    time(&rawtime);
-    info = localtime(&rawtime);
-    strftime(time_string, 64, "%I:%M%p, %A, %B %d, %Y", info);
+    for (;;) {
+        pthread_mutex_lock(&mutex1);
 
-    //print time_string to file
-    fptr = fopen(filename, "w");
-    fprintf(fptr, "%s\n", time_string);
-    fclose(fptr);
-    pthread_mutex_unlock(&mutex1);
+        //get current time and store it in time_string
+        time(&rawtime);
+        info = localtime(&rawtime);
+        strftime(time_string, 64, "%I:%M%p, %A, %B %d, %Y", info);
 
-    pthread_exit(NULL);
+        //write time_string to file
+        fptr = fopen(filename, "w");
+        fprintf(fptr, "%s\n", time_string);
+        fclose(fptr);
+
+        pthread_mutex_unlock(&mutex1);
+        sleep(1);
+    }
 }
 
 /******************************************************************************
@@ -329,7 +341,7 @@ get_current_time(){
 ******************************************************************************/
 char*
 read_time_file(){
-    FILE *fptr;
+    FILE* fptr;
     char* time_string = NULL;
     char filename[16];
     int buffer_length = 0;
