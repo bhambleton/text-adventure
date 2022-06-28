@@ -15,23 +15,23 @@
 #define NUM_CONNECTIONS 6
 
 struct room {
-	char* name;
-	char* type;
-	int num_connections;
-	struct room* outbound_connections[NUM_CONNECTIONS];
+    char* name;
+    char* type;
+    int num_connections;
+    struct room* outbound_connections[NUM_CONNECTIONS];
 };
 
 char ROOM_NAMES[10][15] = { 
-		"Squirtle_Room", 
-		"Scyther_Room", 
-		"Venusaur_Room",
-	   	"Snorlax_Room", 
-		"Gengar_Room", 
-		"Arcanine_Room", 
-		"Jolteon_Room", 
-		"Seadra_Room", 
-	   	"Porygon_Room", 
-		"Dratini_Room" 
+        "Squirtle_Room", 
+        "Scyther_Room", 
+        "Venusaur_Room",
+        "Snorlax_Room", 
+        "Gengar_Room", 
+        "Arcanine_Room", 
+        "Jolteon_Room", 
+        "Seadra_Room", 
+        "Porygon_Room", 
+        "Dratini_Room" 
 }; 
 
 //Functions to connect rooms

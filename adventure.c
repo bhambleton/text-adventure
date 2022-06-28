@@ -31,6 +31,7 @@ main (int argc, char* argv[]) {
     // pthread
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
     if (pthread_create(&my_thread, &attr, &get_current_time, NULL) != 0) {
         perror("Error creating thread");
         de_allocate_game(&game);
@@ -54,7 +55,7 @@ main (int argc, char* argv[]) {
     pthread_attr_destroy(&attr);
     pthread_mutex_destroy(&mutex1);
 
-	return 0;
+    return 0;
 }
 
 /* FUNCTIONS */
@@ -63,6 +64,7 @@ int
 init_game (struct game** game) {
     // filepaths for room info files
     char** filepath_array = NULL;
+    
     //search for directory, verify files
     if (!(filepath_array = get_file_paths())) {
         perror("Error reading files.");
@@ -423,8 +425,8 @@ get_file_paths(){
         }
     }
 
-	closedir(dir_ptr);
-	free(my_dir);
+    closedir(dir_ptr);
+    free(my_dir);
 
     return filepath_array[0][0] ? filepath_array : NULL;
 }
@@ -478,7 +480,7 @@ read_my_dir(){
 
     closedir(dir_ptr);
 
-	return newest_dir_name;
+    return newest_dir_name;
 }
 
 /******************************************************************************

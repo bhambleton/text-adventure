@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS := -Wall -g -std=c99
-CLIBS := -lpthread
+CLIBS := -pthread
 
 GAME_EXE=adventure
 BUILD_EXE=build_rooms

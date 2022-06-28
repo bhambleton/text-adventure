@@ -6,8 +6,8 @@
 #include <stdio.h>
 
 struct user_input {
-	int length;
-	char* input;
+    int length;
+    char* input;
 };
 
 int alloc_line(char**, int*, int);

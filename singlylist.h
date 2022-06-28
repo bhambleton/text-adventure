@@ -13,8 +13,8 @@
 #define ROOM_NAME_MAX 16
 
 struct node {
-	char* name;
-	struct node* next;
+    char* name;
+    struct node* next;
 };
 
 void print_list(struct node*, int);
